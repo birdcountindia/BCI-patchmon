@@ -5,6 +5,7 @@ library(magick)
 library(grid)
 library(patchwork)
 library(ggtext) # to enable markdown in ggplot text (here needed for facet strip text)
+library(skimmr)
 
 source("pmp-functions.R")
 
