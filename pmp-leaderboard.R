@@ -6,6 +6,7 @@ library(lubridate)
 library(glue)
 # library(runner) # for streak (install if not already)
 library(writexl)
+library(skimmr)
 
 
 ### parameters ###
@@ -17,24 +18,19 @@ groupaccspath <- glue("../ebird-datasets/{groupaccspath}")
 senspath <- glue("../ebird-datasets/{senspath}")
 
 
-rel_year <- (today() - months(1)) %>% year()
-rel_month_num <- (today() - months(1)) %>% month()
-rel_month_lab <- (today() - months(1)) %>% month(label = T, abbr = T) 
+get_param(date_currel = "2023-10-01")
 
-cur_date <- today() %>% floor_date(unit = "month") # date under consideration for current leaderboard
-cur_year <- today() %>% year()
-cur_month_num <- today() %>% month()
 
 pmpstartdate <- as_date("2021-07-01") # 1st July = PMP start
 
 # for calculating streak
-currentdays <- 1 + as.numeric(cur_date - pmpstartdate)
+currentdays <- 1 + as.numeric(date_real - pmpstartdate)
 # for new joinees (last 6 months): day after which under consideration for new joinees
-newjoin_date <- cur_date - months(6) 
+newjoin_date <- date_real - months(6) 
 
 
-pmpdatapath <- glue("../ebird-datasets/EBD/pmp_rel{rel_month_lab}-{rel_year}.RData")
-ldbpath <- glue("ldb_{cur_year}-{str_pad(cur_month_num, width = 2, pad = 0)}.xlsx")
+pmpdatapath <- glue("../ebird-datasets/EBD/pmp_rel{currel_month_lab}-{currel_year}.RData")
+ldbpath <- glue("ldb_{real_year}-{str_pad(real_month_num, width = 2, pad = 0)}.xlsx")
 
 ###   ###
 

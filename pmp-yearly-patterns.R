@@ -22,29 +22,16 @@ load(url("https://github.com/birdcountindia/ebird-datasets/raw/main/EBD/latest_n
 logo1 <- image_convert(image_read("bcilogo.png"), matte = T)
 logo2 <- image_convert(image_read("eBird India logo.png"), matte = T)
 
-rel_date <- "2022-06-01" %>% as_date
-cur_date <- "2022-07-01" %>% as_date
+get_param(date_currel = "2023-10-01")
 
-# 
-# # to make code robust against day = 31 (in which case the other lines produce NA)
-# rel_date <- if (today() %>% day() == 31) {
-#   (today() - days(1)) - months(1) %>% 
-#     floor_date(unit = "month")
-# } else {today() - months(1) %>% 
-#     floor_date(unit = "month")}
-
-rel_year <- rel_date %>% year()
-rel_month_num <- rel_date %>% month()
-rel_month_lab <- rel_date %>% month(label = T, abbr = T) 
-
-# cur_date <- today() %>% floor_date(unit = "month") # date under consideration for current leaderboard
+# date_real <- today() %>% floor_date(unit = "month") # date under consideration for current leaderboard
 pmpstartdate <- as_date("2021-07-01") # 1st July = PMP start
 
 
-data_annotation <- glue("Data from {date_to_string(pmpstartdate)} to {date_to_string(cur_date - 1)}")
+data_annotation <- glue("Data from {date_to_string(pmpstartdate)} to {date_to_string(date_real - 1)}")
 
 
-pmpdatapath <- glue("../ebird-datasets/EBD/pmp_rel{rel_month_lab}-{rel_year}.RData")
+pmpdatapath <- glue("../ebird-datasets/EBD/pmp_rel{currel_month_lab}-{currel_year}.RData")
 
 ### ###
 
@@ -336,7 +323,7 @@ map_pmp <- data_pmp %>%
                     ymin = 40, ymax = 42,
                     xmin = 95.1, xmax = 98.6)
 
-ggsave(glue("pmp-yearly-patterns/{rel_year}/pmp-map_{rel_year}.png"), map_pmp, 
+ggsave(glue("pmp-yearly-patterns/{currel_year}/pmp-map_{currel_year}.png"), map_pmp, 
        dpi = 300, width = 6, height = 7, units = "in")
 
 
@@ -393,8 +380,8 @@ for (obs in 1:n_distinct(data1$OBSERVER.ID)) {
       ungroup()
 
 
-    path_temp <- glue("pmp-yearly-patterns/{rel_year}/{obsname_temp}/Reporting frequency of species/")
-    file_temp <- glue("{rel_year}_RF_{str_replace(spec_temp, ' ', '-')}.png")
+    path_temp <- glue("pmp-yearly-patterns/{currel_year}/{obsname_temp}/Reporting frequency of species/")
+    file_temp <- glue("{currel_year}_RF_{str_replace(spec_temp, ' ', '-')}.png")
     
     
     # setting up dimensions and header for the figure
@@ -485,8 +472,8 @@ for (obs in 1:n_distinct(data2$OBSERVER.ID)) {
   print(glue("Loop progress: observer {obs}"))
   
   
-  path_temp <- glue("pmp-yearly-patterns/{rel_year}/{obsname_temp}/Species richness/")
-  file_temp <- glue("{rel_year}_SR.png")
+  path_temp <- glue("pmp-yearly-patterns/{currel_year}/{obsname_temp}/Species richness/")
+  file_temp <- glue("{currel_year}_SR.png")
   
   # setting up dimensions and header for the figure
   gen_fig_setup(data_temp1, metric = 2)
@@ -602,8 +589,8 @@ for (obs in 1:n_distinct(data3$OBSERVER.ID)) {
       ungroup()
     
     
-    path_temp <- glue("pmp-yearly-patterns/{rel_year}/{obsname_temp}/Species counts/")
-    file_temp <- glue("{rel_year}_SC_{str_replace(spec_temp, ' ', '-')}.png")
+    path_temp <- glue("pmp-yearly-patterns/{currel_year}/{obsname_temp}/Species counts/")
+    file_temp <- glue("{currel_year}_SC_{str_replace(spec_temp, ' ', '-')}.png")
     
     # setting up dimensions and header for the figure
     gen_fig_setup(data_temp2, metric = 3)
@@ -684,7 +671,7 @@ data4 <- data_pmp %>%
   slice(1) %>% 
   ungroup()
 
-timeline <- data.frame(OBSERVATION.DATE = seq(pmpstartdate, cur_date, by = "month")) %>% 
+timeline <- data.frame(OBSERVATION.DATE = seq(pmpstartdate, date_real, by = "month")) %>% 
   mutate(MONTH = month(OBSERVATION.DATE),
          MONTH.LABEL = month(OBSERVATION.DATE, label = T),
          YEAR = year(OBSERVATION.DATE),
@@ -720,8 +707,8 @@ for (obs in 1:n_distinct(data4$OBSERVER.ID)) {
       left_join(breedingcolours)
     
     
-    path_temp <- glue("pmp-yearly-patterns/{rel_year}/{obsname_temp}/Breeding codes/")
-    file_temp <- glue("{rel_year}_BC_{str_replace(spec_temp, ' ', '-')}.png")
+    path_temp <- glue("pmp-yearly-patterns/{currel_year}/{obsname_temp}/Breeding codes/")
+    file_temp <- glue("{currel_year}_BC_{str_replace(spec_temp, ' ', '-')}.png")
     
     
     # setting up dimensions and header for the figure
@@ -737,7 +724,7 @@ for (obs in 1:n_distinct(data4$OBSERVER.ID)) {
          scale_y_continuous(limits = c(0, 21),
                             breaks = breedinglabels$BREEDING.ORDER,
                             labels = breedinglabels$LABEL) +
-         scale_x_continuous(limits = c(pmpstartdate, cur_date),
+         scale_x_continuous(limits = c(pmpstartdate, date_real),
                             breaks = timeline$OBSERVATION.DATE,
                             labels = timeline$LABEL) +
          geom_line(aes(colour = NA), linetype = 1, colour = "#C2C2C2") +
