@@ -18,7 +18,7 @@ groupaccspath <- glue("../ebird-datasets/{groupaccspath}")
 senspath <- glue("../ebird-datasets/{senspath}")
 
 
-get_param(date_currel = "2023-10-01")
+get_param()
 
 
 pmpstartdate <- as_date("2021-07-01") # 1st July = PMP start
@@ -209,9 +209,7 @@ data_l3 <- data_l3 %>% left_join(data_l3c)
 ldb1 <- data_l3 %>% 
   pivot_wider(names_from = c(P.TYPE), values_from = NO.INST2, values_fill = 0) %>% 
   select(-"NA") %>% 
-  # adding state and district
-  left_join(patch_loc %>% distinct(OBSERVER.ID, STATE, COUNTY)) %>% 
-  group_by(OBSERVER.ID, FULL.NAME, STATE, COUNTY, NO.LISTS, NO.P) %>% 
+  group_by(OBSERVER.ID, FULL.NAME, NO.LISTS, NO.P) %>% 
   summarise(TOT.INST = sum(NO.INST), # total instances over different patches
             T.INST = sum(T.INST),
             W.INST = sum(W.INST)) %>% 
