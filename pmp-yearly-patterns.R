@@ -6,10 +6,11 @@ library(grid)
 library(patchwork)
 library(ggtext) # to enable markdown in ggplot text (here needed for facet strip text)
 library(skimmr)
+library(sf)
 
 source("pmp-functions.R")
 
-load("maps.RData")
+load("../india-maps/outputs/maps_sf.RData")
 
 cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", 
                 "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
@@ -19,11 +20,15 @@ cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73",
 
 # paths to latest versions of user & GA info, and sensitive species data
 load(url("https://github.com/birdcountindia/ebird-datasets/raw/main/EBD/latest_non-EBD_paths.RData"))
+userspath <- glue("../ebird-datasets/{userspath}")
+groupaccspath <- glue("../ebird-datasets/{groupaccspath}")
+senspath <- glue("../ebird-datasets/{senspath}")
+
 
 logo1 <- image_convert(image_read("bcilogo.png"), matte = T)
 logo2 <- image_convert(image_read("eBird India logo.png"), matte = T)
 
-get_param(date_currel = "2023-10-01")
+get_param()
 
 # date_real <- today() %>% floor_date(unit = "month") # date under consideration for current leaderboard
 pmpstartdate <- as_date("2021-07-01") # 1st July = PMP start
@@ -107,8 +112,8 @@ samplesizes <- data_pmp %>%
 
 ##### filtering species per patch per observer for analyses ####
 
-
 # list of species commonly observed in patches to be removed
+# (species that are too common won't show interesting patterns)
 remove_common <- data_pmp %>% 
   group_by(OBSERVER.ID, FULL.NAME, LOCALITY.ID, SEASON) %>% 
   mutate(TOT.LISTS = n_distinct(SAMPLING.EVENT.IDENTIFIER)) %>% 
@@ -123,7 +128,6 @@ remove_common <- data_pmp %>%
   filter(REMOVE == 1)
 
 
-
 # filtering 20 species per observer across all their patches (removing very common spp.)
 filt_spec_RC <- data_pmp %>% 
   group_by(OBSERVER.ID, FULL.NAME, COMMON.NAME, LOCALITY.ID, SEASON) %>% 
@@ -135,7 +139,7 @@ filt_spec_RC <- data_pmp %>%
             TOT.OBS = sum(N.OBS)) %>% 
   # at least 2 seasons
   filter(N.SEASONS >= 2) %>% 
-  # # removing species commonly observed in patches (>90% repfreq in all seasons)
+  # removing species commonly observed in patches (>90% repfreq in all seasons)
   anti_join(remove_common) %>%
   # selecting 20 species with most observations across all patches
   arrange(OBSERVER.ID, COMMON.NAME, LOCALITY.ID, desc(TOT.OBS)) %>% 
@@ -164,7 +168,6 @@ filt_specloc_RC <- data_pmp %>%
   ungroup()
 
 
-
 # filtering 20 species per observer across all their patches (w/o removing very common spp.)
 filt_spec <- data_pmp %>% 
   group_by(OBSERVER.ID, FULL.NAME, COMMON.NAME, LOCALITY.ID, SEASON) %>% 
@@ -186,7 +189,6 @@ filt_spec <- data_pmp %>%
   distinct(OBSERVER.ID, FULL.NAME, COMMON.NAME, TOT.OBS) %>% 
   ungroup()
 
-
 # species must be present in every month per season, in at least two seasons 
 # (w/o removing very common spp.)
 filt_specloc <- data_pmp %>%
@@ -202,8 +204,6 @@ filt_specloc <- data_pmp %>%
   distinct(OBSERVER.ID, FULL.NAME, LOCALITY.ID, COMMON.NAME) %>% 
   ungroup()
   
-
-
 # location (patch) needs data in every month per season, in at least two seasons
 filt_loc <- data_pmp %>% 
   group_by(OBSERVER.ID, FULL.NAME, LOCALITY.ID, SEASON) %>% 
@@ -274,12 +274,14 @@ filt_breedspecloc <- data_pmp %>%
 map_pmp <- data_pmp %>% 
   group_by(OBSERVER.ID, LOCALITY.ID, LONGITUDE, LATITUDE) %>% 
   summarise(N.SEASONS = n_distinct(SEASON)) %>% 
-  ggplot(aes(x = LONGITUDE, y = LATITUDE)) +
-  geom_polygon(data = indiamap, 
-               aes(x = long, y = lat, group = group), 
-               colour = NA, fill = "#B7B7B8") +
-  geom_point(aes(colour = factor(N.SEASONS)), 
-             size = 4, alpha = 0.2, stroke = 0) +
+  ungroup() %>% 
+  st_as_sf(coords = c("LONGITUDE", "LATITUDE")) %>% 
+  st_set_crs(st_crs(india_sf)) %>% 
+  ggplot() +
+  geom_sf(data = india_sf, 
+          colour = NA, fill = "#B7B7B8") +
+  geom_sf(aes(colour = factor(N.SEASONS)), 
+          size = 4, alpha = 0.2, stroke = 0) +
   scale_colour_viridis_d(name = "Number of seasons") +
   # scale_colour_brewer(palette = 3, name = "Number of seasons", direction = -1) +
   labs(title = "Patch Monitoring Project \nacross the country",
@@ -308,7 +310,7 @@ map_pmp <- data_pmp %>%
   guides(colour = guide_legend(title.position = "top",
                                # so points in legend are not translucent
                                override.aes = list(alpha = 1))) +
-  coord_cartesian(clip = "off") +
+  coord_sf(clip = "off") +
   annotation_custom(textGrob(label = data_annotation, 
                              hjust = 0,
                              gp = gpar(col = "#ADADAD", 
@@ -653,11 +655,10 @@ data4 <- data_pmp %>%
   mutate(BREEDING.CODE = if_else(is.na(BREEDING.CODE), "NA", BREEDING.CODE)) %>% 
   right_join(filt_breedspecloc) %>% 
   group_by(OBSERVER.ID, FULL.NAME, LOCALITY, COMMON.NAME, SEASON) %>% 
-  distinct(OBSERVATION.DATE, DAY.M, MONTH, BREEDING.CODE) %>% 
+  distinct(OBSERVATION.DATE, DAY.M, MONTH, YEAR, BREEDING.CODE) %>% 
   ungroup() %>% 
   # keeping only observations with useful breeding codes
-  filter(BREEDING.CODE %in% breedingcodes$BREEDING.CODE) %>% 
-  left_join(breedingcodes) %>% 
+  inner_join(breedingcodes, by = "BREEDING.CODE") %>% 
   mutate(
     BREEDING.CODE = factor(BREEDING.CODE, levels = c("NA",
                                                      "S", 
@@ -666,8 +667,8 @@ data4 <- data_pmp %>%
     BREEDING.TYPE = factor(BREEDING.TYPE, levels = c("No evidence", "Possible", 
                                                      "Probable", "Confirmed"))
     ) %>% 
-  # summarising by month (max breeding code in a month)
-  group_by(OBSERVER.ID, FULL.NAME, LOCALITY, COMMON.NAME, SEASON, MONTH) %>% 
+  # summarising by month (max breeding code in a month in a year)
+  group_by(OBSERVER.ID, FULL.NAME, LOCALITY, COMMON.NAME, SEASON, MONTH, YEAR) %>% 
   arrange(desc(BREEDING.ORDER)) %>% 
   slice(1) %>% 
   ungroup()
@@ -675,8 +676,8 @@ data4 <- data_pmp %>%
 timeline <- data.frame(OBSERVATION.DATE = seq(pmpstartdate, date_real, by = "month")) %>% 
   mutate(MONTH = month(OBSERVATION.DATE),
          MONTH.LABEL = month(OBSERVATION.DATE, label = T),
-         YEAR = year(OBSERVATION.DATE),
-         LABEL = glue("{MONTH.LABEL} '{str_trunc(YEAR, 2, 'left', ellipsis = '')}"))
+         YEAR = year(OBSERVATION.DATE)) %>% 
+  distinct()
 
 breedinglabels <- breedingcodes %>% 
   filter(BREEDING.ORDER %in% c(2, 6, 11, 15, 18, 21))
@@ -691,8 +692,10 @@ breedingcolours <- breedingcodes %>%
 for (obs in 1:n_distinct(data4$OBSERVER.ID)) {
   
   obs_temp <- unique(data4$OBSERVER.ID)[obs]
-  obsname_temp <- data4 %>% distinct(OBSERVER.ID, FULL.NAME) %>% 
-    filter(OBSERVER.ID %in% obs_temp) %>% distinct(FULL.NAME) %>% as.character()
+  obsname_temp <- data4 %>% 
+    distinct(OBSERVER.ID, FULL.NAME) %>% 
+    filter(OBSERVER.ID %in% obs_temp) %>% 
+    pull(FULL.NAME) 
   data_temp1 <- filter(data4, OBSERVER.ID == obs_temp)
   
   
@@ -720,16 +723,16 @@ for (obs in 1:n_distinct(data4$OBSERVER.ID)) {
     
     plot_temp <- (header) / 
       (ggplot(data_temp2, 
-              aes(OBSERVATION.DATE, BREEDING.ORDER, colour = BREEDING.TYPE)) +
+              aes(MONTH, BREEDING.ORDER, colour = BREEDING.TYPE)) +
          facet_wrap(~ LOCALITY, ncol = 1) +
          scale_y_continuous(limits = c(0, 21),
                             breaks = breedinglabels$BREEDING.ORDER,
                             labels = breedinglabels$LABEL) +
-         scale_x_continuous(limits = c(pmpstartdate, date_real),
-                            breaks = timeline$OBSERVATION.DATE,
-                            labels = timeline$LABEL) +
-         geom_line(aes(colour = NA), linetype = 1, colour = "#C2C2C2") +
-         geom_point(size = 3, position = position_dodge(width = 0.4)) +
+         scale_x_continuous(breaks = unique(timeline$MONTH),
+                            labels = unique(timeline$MONTH.LABEL)) +
+         geom_line(aes(colour = NA, group = YEAR), 
+                   linetype = 1, colour = "#C2C2C2") +
+         geom_point(size = 3) +
          scale_colour_manual(values = colours_in_scale$COLOURS) +
          labs(x = "Months", y = "Breeding behaviour",
               colour = "Breeding behaviour type") +
