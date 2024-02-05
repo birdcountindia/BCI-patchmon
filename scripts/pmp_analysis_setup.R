@@ -9,30 +9,32 @@ load(pmpdatapath)
 data_pmp <- left_join(data_pmp, eBird_users, "OBSERVER.ID")
 
 
-########
+if (which == "leaderboard") {
+  
+  # list of all PMP participants so far (overwrites previous file) 
+  participants <- data_pmp %>% 
+    distinct(OBSERVER.ID, FULL.NAME) %>% 
+    filter(OBSERVER.ID != "obsr2607928")
+  
+  write_csv(participants, file = "pmp_participants.csv")
+  
+}
 
 
 data0 <- data_pmp %>% 
   ungroup() %>% 
   filter(OBSERVER.ID != "obsr2607928") %>% # PMP account
-  group_by(OBSERVER.ID, LOCALITY.ID, SAMPLING.EVENT.IDENTIFIER) %>% 
-  slice(1) %>% ungroup() %>% 
-  # basic eligible list filter
-  filter(ALL.SPECIES.REPORTED == 1, DURATION.MINUTES >= 14) %>% 
-  group_by(SAMPLING.EVENT.IDENTIFIER) %>% 
-  filter(!any(OBSERVATION.COUNT == "X")) %>% 
-  ungroup() 
-
-
-
-data_pmp <- data_pmp %>% 
-  ungroup() %>% 
-  filter(OBSERVER.ID != "obsr2607928") %>% # PMP account
-  # removing spuhs, slashes, etc.
-  mutate(CATEGORY = if_else(CATEGORY == "domestic" & COMMON.NAME == "Rock Pigeon", 
-                            "species",
-                            CATEGORY)) %>% 
-  filter(CATEGORY %in% c("issf", "species")) %>% 
+  {if (which == "leaderboard") {
+    group_by(., OBSERVER.ID, LOCALITY.ID, SAMPLING.EVENT.IDENTIFIER) %>% 
+      slice(1) %>% 
+      ungroup() 
+  } else if (which == "yearly") {
+    # removing spuhs, slashes, etc.
+    mutate(., 
+           CATEGORY = if_else(CATEGORY == "domestic" & COMMON.NAME == "Rock Pigeon", 
+                              "species", CATEGORY)) %>% 
+      filter(CATEGORY %in% c("issf", "species"))
+  }} %>% 
   # basic eligible list filter
   filter(ALL.SPECIES.REPORTED == 1, DURATION.MINUTES >= 14) %>% 
   group_by(SAMPLING.EVENT.IDENTIFIER) %>% 
@@ -40,8 +42,6 @@ data_pmp <- data_pmp %>%
   mutate(OBSERVATION.COUNT = as.numeric(OBSERVATION.COUNT)) %>% 
   ungroup() 
 
-
-########
 
 # observer-patch-state-district info
 patch_loc <- data0 %>% distinct(OBSERVER.ID, LOCALITY.ID, STATE, COUNTY)
@@ -91,3 +91,25 @@ data2 <- data1 %>%
   mutate(FULL.NAME = case_when(FULL.NAME == "Lakshmikant Neve" ~ 
                                  "Lakshmikant-Loukika Neve",
                                TRUE ~ FULL.NAME))
+
+if (which == "yearly") {
+  
+  # season information
+  data2 <- data2 %>% 
+    mutate(SEASON = case_when(MONTH %in% 3:5 ~ "Spring",
+                              MONTH %in% 6:8 ~ "Summer",
+                              MONTH %in% 9:11 ~ "Autumn",
+                              MONTH %in% c(12, 1, 2) ~ "Winter")) %>% 
+    mutate(SEASON = factor(SEASON, 
+                           # same as migratory year
+                           levels = c("Summer", "Autumn", "Winter", "Spring")))
+  
+  # getting sample size data for other metrics 
+  samplesizes <- data2 %>% 
+    group_by(OBSERVER.ID, FULL.NAME, LOCALITY.ID, LOCALITY, SEASON) %>% 
+    summarise(TOT.LISTS = n_distinct(SAMPLING.EVENT.IDENTIFIER))
+  
+  # renaming back to data_pmp
+  data_pmp <- data2
+  
+}

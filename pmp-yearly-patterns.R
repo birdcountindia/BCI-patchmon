@@ -41,73 +41,11 @@ pmpdatapath <- glue("../ebird-datasets/EBD/pmp_rel{currel_month_lab}-{currel_yea
 
 ### ###
 
+
 ##### setup ####
 
-load(pmpdatapath)
-
-# joining observer names to dataset
-eBird_users <- read.delim(userspath, sep = "\t", header = T, quote = "", 
-                          stringsAsFactors = F, na.strings = c(""," ",NA)) %>% 
-  transmute(OBSERVER.ID = observer_id,
-            FULL.NAME = paste(first_name, last_name, sep = " "))
-data_pmp <- left_join(data_pmp, eBird_users, "OBSERVER.ID")
-
-data_pmp <- data_pmp %>% 
-  ungroup() %>% 
-  filter(OBSERVER.ID != "obsr2607928") %>% # PMP account
-  # removing spuhs, slashes, etc.
-  mutate(CATEGORY = if_else(CATEGORY == "domestic" & COMMON.NAME == "Rock Pigeon", 
-                            "species",
-                            CATEGORY)) %>% 
-  filter(CATEGORY %in% c("issf", "species")) %>% 
-  # basic eligible list filter
-  filter(ALL.SPECIES.REPORTED == 1, DURATION.MINUTES >= 14) %>% 
-  group_by(SAMPLING.EVENT.IDENTIFIER) %>% 
-  filter(!any(OBSERVATION.COUNT == "X")) %>% 
-  mutate(OBSERVATION.COUNT = as.numeric(OBSERVATION.COUNT)) %>% 
-  ungroup() 
-
-# season information
-data_pmp <- data_pmp %>% 
-  mutate(SEASON = case_when(MONTH %in% 3:5 ~ "Spring",
-                            MONTH %in% 6:8 ~ "Summer",
-                            MONTH %in% 9:11 ~ "Autumn",
-                            MONTH %in% c(12, 1, 2) ~ "Winter")) %>% 
-  mutate(SEASON = factor(SEASON, 
-                         # same as migratory year
-                         levels = c("Summer", "Autumn", "Winter", "Spring")))
-
-# excluding non-patch-monitors having lists shared with patch-monitors
-temp1 <- data_pmp %>% 
-  group_by(LOCALITY.ID, GROUP.ID) %>% 
-  # no. of observers in instance
-  summarise(PATCH.OBS = n_distinct(SAMPLING.EVENT.IDENTIFIER)) 
-
-# selecting users with at least one solo PMP checklist to filter out non-monitors that 
-# only have shared lists with monitors
-temp2 <- data_pmp %>% 
-  left_join(temp1) %>% 
-  filter(PATCH.OBS == 1) %>% 
-  # to remove same observer's second account
-  group_by(FULL.NAME, OBSERVER.ID) %>% 
-  # choosing account with most observations (assumed to be primary)
-  summarise(N = n()) %>% 
-  arrange(desc(N)) %>% slice(1) %>% ungroup() %>% 
-  distinct(FULL.NAME, OBSERVER.ID)
-
-data_pmp <- data_pmp %>% 
-  filter(OBSERVER.ID %in% temp2$OBSERVER.ID) %>% 
-  # filter(str_detect(LOCALITY, "PMP")) %>% # PMP in location name is not mandate
-  # Lakshmikant/Loukika slash
-  mutate(FULL.NAME = case_when(FULL.NAME == "Lakshmikant Neve" ~ 
-                                 "Lakshmikant-Loukika Neve",
-                               TRUE ~ FULL.NAME))
-
-
-# getting sample size data for other metrics 
-samplesizes <- data_pmp %>% 
-  group_by(OBSERVER.ID, FULL.NAME, LOCALITY.ID, LOCALITY, SEASON) %>% 
-  summarise(TOT.LISTS = n_distinct(SAMPLING.EVENT.IDENTIFIER))
+which <- "yearly"
+source("scripts/pmp_analysis_setup.R")
 
 
 ##### filtering species per patch per observer for analyses ####
